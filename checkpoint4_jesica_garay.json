@@ -1,0 +1,603 @@
+{
+  "name": "UNIDAD 4 entregable",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "simple": false,
+        "filters": {},
+        "options": {}
+      },
+      "id": "7af633c0-6ce6-481c-afc3-a43d4339fbb4",
+      "name": "Recibe correos",
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        -1440,
+        864
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "gPjNc1XzOyfibJ2B",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 4
+          },
+          "conditions": [
+            {
+              "id": "78693edd-7a29-4620-81d1-ed684ce84d96",
+              "leftValue": "={{ $json.Subject }}",
+              "rightValue": "noreply",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "id": "8e68e398-b2b0-4d99-8f32-4e11beec88f8",
+              "leftValue": "={{ $json.Subject }}",
+              "rightValue": "out of office",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "id": "f1eddf98-b6eb-4793-9316-52d9340ce7a6",
+              "leftValue": "={{ $json.From }}",
+              "rightValue": "no.reply",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {
+          "ignoreCase": true
+        }
+      },
+      "id": "c5e5b4d8-f674-41b1-a2aa-88260cdc66c4",
+      "name": "pasa el filtro de \"SPAM\"?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.4,
+      "position": [
+        -1216,
+        864
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "30897635-0c84-48fc-8b18-3936f3a5071e",
+      "name": "descartamos",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        -976,
+        704
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Analiza este  mail y clasifica como spam o no-spam-responde solamente con el valor logico : true/false{{ $json.headers.subject }}{{ $json.text }}",
+        "messages": {
+          "messageValues": []
+        },
+        "batching": {}
+      },
+      "id": "79e5522f-f90c-4b89-979f-3c36ad18980c",
+      "name": "Filtro SPAM IA",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        -992,
+        960
+      ]
+    },
+    {
+      "parameters": {
+        "model": "qwen/qwen3.8-27b",
+        "options": {}
+      },
+      "id": "2b3be128-e4b3-4296-ba58-a025370c517d",
+      "name": "Groq Chat Model1",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        -976,
+        1136
+      ],
+      "credentials": {
+        "groqApi": {
+          "id": "kFJnBx7iXlGQ7q62",
+          "name": "Groq account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Procesá el siguiente correo de soporte de nuestra tienda online, y generá un texto para responder al susuario.\n\nASUNTO:{{ $('Recibe correos').item.json.headers.subject }}\n\nMENSAJE:\n{{ $('Recibe correos').item.json.text }}\n\n",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "You are a helpful assistant\n# Rol y Propósito\nEres el Agente Senior de Soporte al Cliente y Operaciones de nuestra tienda online. Tu objetivo principal es procesar con precisión los correos entrantes de los clientes, analizar su intención, extraer los datos clave y redactar una respuesta profesional, empática y orientada a la solución, que luego será sometida a validación humana (Human-in-the-Loop), ARMAR UN BORRADOR PARA GMAIL  Y UN RESUMEN PARA EL EQUIPO DE CALIDAD EN SLACK\n\n# Directrices Operativas (Reglas Estrictas)\n1. **Análisis de Intención:** Clasifica el requerimiento del cliente en una de las siguientes categorías: \"ventas\", \"reclamos\", \"proveedores\" o \"consultas\".\n2. **Uso Exclusivo de Datos Reales:** Responde únicamente basándote en la información provista en el contexto actual del cliente y el historial de memoria. NUNCA inventes políticas de devolución, precios, tiempos de entrega ni estados de pedidos que no estén explícitamente documentados.\n3. **Tono y Estilo:** Mantén un tono formal pero cercano, empático ante reclamos o dudas, y directo al entregar soluciones. Evita tecnicismos innecesarios o lenguaje robótico.\n4. **Seguridad y Menor Privilegio:** Si detectas solicitudes de alto riesgo (reembolsos totales, cancelaciones críticas de cuentas o disputas legales), marca el caso con `risk: \"high\"` para asegurar la intervención de un supervisor humano.\n\n# Estructura Obligatoria de Salida (JSON Output)\nDebes responder estrictamente estructurando tu salida en un objeto JSON válido que contenga la siguiente estructura exacta, sin texto adicional fuera del JSON:\n\n{\n  \"output\": {\n    \"intent\": \"ventas | reclamos | proveedores | consultas\",\n    \"confidence\": 0.0 a 1.0,\n    \"risk\": \"low | medium | high\",\n    \"status\": \"EN_PROCESO | REQUIERE_APROBACION | RESUELTO\",\n    \"respuesta\": \"Texto redactado formalmente para el cliente respondiendo a su consulta...\"\n  }\n}"
+        }
+      },
+      "id": "7ee69b95-43a8-4c73-ba28-d1f5f69c2c33",
+      "name": "AI Agent-Soporte ",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -64,
+        912
+      ]
+    },
+    {
+      "parameters": {
+        "model": "qwen/qwen3.8-27b",
+        "options": {}
+      },
+      "id": "f8c7189c-df29-48dd-b9f7-1ad3fbe28142",
+      "name": "Groq Chat Model2",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        -32,
+        1216
+      ],
+      "credentials": {
+        "groqApi": {
+          "id": "kFJnBx7iXlGQ7q62",
+          "name": "Groq account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"draft_subject\": {\n      \"type\": \"string\",\n      \"description\": \"El asunto del correo electrónico a enviar.\"\n    },\n    \"draft_body\": {\n      \"type\": \"string\",\n      \"description\": \"El cuerpo completo del correo electrónico redactado.\"\n    },\n    \"slack_summary\": {\n      \"type\": \"string\",\n      \"description\": \"Un resumen breve y claro dirigido al equipo de calidad para enviar por Slack.\"\n    }\n  },\n  \"required\": [\"draft_subject\", \"draft_body\", \"slack_summary\"]\n}"
+      },
+      "id": "1fb46cd1-4f2c-48b0-b9dd-74d71cf152f1",
+      "name": "Structured Output Parser1",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        112,
+        1200
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "257993b8-71c4-47f0-aa68-de58d62c4011",
+              "name": "mensaje",
+              "value": "={{ $('Recibe correos').item.json.text }}",
+              "type": "string"
+            },
+            {
+              "id": "95d3c3ef-4515-4e8c-92de-953838e717d5",
+              "name": "asunto",
+              "value": "={{ $('Recibe correos').item.json.subject }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        -352,
+        960
+      ],
+      "id": "c59c6229-5b2e-4c5c-8dc9-2d8bdb245324",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 4
+          },
+          "conditions": [
+            {
+              "id": "eb063d5f-9c69-4efd-a1fd-209584c8e3e2",
+              "leftValue": "={{ $json.text }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.4,
+      "position": [
+        -736,
+        960
+      ],
+      "id": "66beae16-9600-4a8c-a92e-4cccc3882fa9",
+      "name": "If"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        -544,
+        752
+      ],
+      "id": "00341649-8f8d-4d2f-9404-402191bffaa8",
+      "name": "descartamos1"
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "operation": "search",
+        "returnAll": "=",
+        "filterGroupsUi": {
+          "filterGroupsValues": [
+            {
+              "filtersUi": {
+                "filterValues": [
+                  {
+                    "propertyName": "email|string",
+                    "value": "={{ $('Recibe correos').item.json.to.value[0].address }}"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.hubspot",
+      "typeVersion": 2.3,
+      "position": [
+        304,
+        912
+      ],
+      "id": "3023661b-46be-4fda-acb0-2ec6324bd311",
+      "name": "Buscar contacto",
+      "alwaysOutputData": true,
+      "credentials": {
+        "hubspotOAuth2Api": {
+          "id": "nd68m0lVNMQrAGc5",
+          "name": "HubSpot account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 4
+          },
+          "conditions": [
+            {
+              "id": "a8d8fffc-33c8-49b2-b98b-22be82289417",
+              "leftValue": "={{ $json.id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.4,
+      "position": [
+        528,
+        912
+      ],
+      "id": "8dcd042e-fead-4025-92eb-7b55643c0de8",
+      "name": "Existe?"
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "email": "={{ $('Recibe correos').item.json.to.value[0].address }}",
+        "additionalFields": {
+          "leadStatus": "OPEN"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.hubspot",
+      "typeVersion": 2.3,
+      "position": [
+        848,
+        912
+      ],
+      "id": "3fd7e373-85ff-4fcd-acb8-5f18b326e7c5",
+      "name": "actulizar contacto",
+      "credentials": {
+        "hubspotOAuth2Api": {
+          "id": "nd68m0lVNMQrAGc5",
+          "name": "HubSpot account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "email": "={{ $('Recibe correos').item.json.from.value[0].address }}",
+        "additionalFields": {
+          "leadStatus": "NEW"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.hubspot",
+      "typeVersion": 2.3,
+      "position": [
+        832,
+        1152
+      ],
+      "id": "afe901d3-0938-49f1-8829-e85bcaa245e2",
+      "name": "crear contacto",
+      "credentials": {
+        "hubspotOAuth2Api": {
+          "id": "nd68m0lVNMQrAGc5",
+          "name": "HubSpot account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('Recibe correos').item.json.headers.to }}",
+        "subject": "={{ $json.output.properties.draft_subject.description }}",
+        "message": "={{ $json.output.properties.draft_body.description }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        400,
+        1280
+      ],
+      "id": "ddd49fa1-3869-441c-b1fe-3e28e36ac743",
+      "name": "Enviar borrador a Team",
+      "webhookId": "2b407bae-ad0a-4c63-9710-d3645e02a29a",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "gPjNc1XzOyfibJ2B",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "C0CBZB5T82V",
+          "mode": "list",
+          "cachedResultName": "general-coder"
+        },
+        "text": "=Resumen:{{ $json.output.properties.slack_summary.description }}\nmail del cliente:{{ $('Recibe correos').item.json.to.value[0].address }}{{ $('Recibe correos').item.json.to.value[0].name }}",
+        "otherOptions": {}
+      },
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.7,
+      "position": [
+        416,
+        1456
+      ],
+      "id": "57c03af2-621c-444f-b4bb-db43fa64ebdd",
+      "name": "Send a message",
+      "webhookId": "bfef7599-b90f-454c-8422-33e62b77bec4",
+      "credentials": {
+        "slackOAuth2Api": {
+          "id": "NYao4p8bQDge7jNu",
+          "name": "Slack account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Recibe correos": {
+      "main": [
+        [
+          {
+            "node": "pasa el filtro de \"SPAM\"?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "pasa el filtro de \"SPAM\"?": {
+      "main": [
+        [
+          {
+            "node": "descartamos",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Filtro SPAM IA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filtro SPAM IA": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Filtro SPAM IA",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Chat Model2": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent-Soporte ",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser1": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "AI Agent-Soporte ",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "AI Agent-Soporte ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "descartamos1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent-Soporte ": {
+      "main": [
+        [
+          {
+            "node": "Buscar contacto",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Enviar borrador a Team",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar contacto": {
+      "main": [
+        [
+          {
+            "node": "Existe?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Existe?": {
+      "main": [
+        [
+          {
+            "node": "actulizar contacto",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "crear contacto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "actulizar contacto": {
+      "main": [
+        []
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "d6371c47-d234-4422-ae71-aac15b02dceb",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "b93a94061b5c096c8011dadc8d90e782d899ad4fae0e074c87d632d36e948b78"
+  },
+  "nodeGroups": [],
+  "id": "8MMv5eCBS9h1ugyL",
+  "tags": []
+}
